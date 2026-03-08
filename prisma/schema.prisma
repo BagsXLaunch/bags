@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  xUserId     String   @unique @map("x_user_id")
+  username    String
+  displayName String?  @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  sourceTweets   SourceTweet[]
+  launchRequests LaunchRequest[]
+
+  @@map("users")
+}
+
+model SourceTweet {
+  id             String   @id @default(cuid())
+  tweetId        String   @unique @map("tweet_id")
+  authorId       String   @map("author_id")
+  tweetText      String   @map("tweet_text")
+  tweetUrl       String?  @map("tweet_url")
+  rawPayloadJson String?  @map("raw_payload_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user           User?           @relation(fields: [authorId], references: [xUserId])
+  launchRequests LaunchRequest[]
+  replies        Reply[]
+
+  @@map("source_tweets")
+}
+
+model LaunchRequest {
+  id                 String   @id @default(cuid())
+  sourceTweetId      String   @map("source_tweet_id")
+  userId             String   @map("user_id")
+  requestName        String   @map("request_name")
+  requestTicker      String   @map("request_ticker")
+  requestDescription String?  @map("request_description")
+  requestMediaUrl    String?  @map("request_media_url")
+  parseStatus        String   @default("parsed") @map("parse_status")
+  validationStatus   String   @default("pending") @map("validation_status")
+  validationReason   String?  @map("validation_reason")
+  status             String   @default("received")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  sourceTweet SourceTweet @relation(fields: [sourceTweetId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  launches    Launch[]
+
+  @@map("launch_requests")
+}
+
+model Launch {
+  id                   String    @id @default(cuid())
+  launchRequestId      String    @map("launch_request_id")
+  providerName         String    @map("provider_name")
+  providerRequestJson  String?   @map("provider_request_json")
+  providerResponseJson String?   @map("provider_response_json")
+  tokenAddress         String?   @map("token_address")
+  coinUrl              String?   @map("coin_url")
+  status               String    @default("pending")
+  errorCode            String?   @map("error_code")
+  errorMessage         String?   @map("error_message")
+  launchedAt           DateTime? @map("launched_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  launchRequest LaunchRequest @relation(fields: [launchRequestId], references: [id])
+  replies       Reply[]
+
+  @@map("launches")
+}
+
+model Reply {
+  id            String    @id @default(cuid())
+  launchId      String?   @map("launch_id")
+  sourceTweetId String    @map("source_tweet_id")
+  replyTweetId  String?   @map("reply_tweet_id")
+  replyType     String    @map("reply_type")
+  replyText     String    @map("reply_text")
+  sentAt        DateTime? @map("sent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  launch      Launch?     @relation(fields: [launchId], references: [id])
+  sourceTweet SourceTweet @relation(fields: [sourceTweetId], references: [id])
+
+  @@unique([replyType, sourceTweetId])
+  @@map("replies")
+}
+
+model ProcessingState {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("processing_state")
+}
+
+model BlacklistEntry {
+  id        String   @id @default(cuid())
+  type      String // "user" | "term"
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([type, value])
+  @@map("blacklist_entries")
+}
