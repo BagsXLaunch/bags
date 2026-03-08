@@ -9,11 +9,18 @@ export type LaunchStatus =
   | 'failed'
   | 'retryable_failed';
 
+export interface FeeClaimer {
+  username: string;
+  provider: 'twitter';
+  bps: number;
+}
+
 export interface ParsedLaunchCommand {
   name: string;
   ticker: string;
   description?: string;
   mediaUrls?: string[];
+  feeClaimers?: FeeClaimer[];
 }
 
 export interface TweetData {

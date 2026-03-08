@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock env before importing parser
 vi.mock('../../app/env.js', () => ({
-  env: { BOT_USERNAME: 'LaunchOnBags' },
+  env: { BOT_USERNAME: 'BagsLaunch' },
 }));
 
 import { parseLaunchCommand } from './parse-launch-command.js';
@@ -56,7 +56,7 @@ describe('parseLaunchCommand', () => {
     });
 
     it('rejects empty command', () => {
-      const result = parseLaunchCommand('@LaunchOnBags');
+      const result = parseLaunchCommand('@BagsLaunch');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Empty command');
     });
@@ -95,6 +95,67 @@ describe('parseLaunchCommand', () => {
     it('handles extra whitespace', () => {
       const result = parseLaunchCommand('@BagsLaunch   "My  Project"   $PROJ');
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe('fee claimers', () => {
+    it('parses single fee claimer with %', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@alice 50%)');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toEqual([
+        { username: 'alice', provider: 'twitter', bps: 5000 },
+      ]);
+    });
+
+    it('parses single fee claimer without % sign', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@alice 50)');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toEqual([
+        { username: 'alice', provider: 'twitter', bps: 5000 },
+      ]);
+    });
+
+    it('parses multiple fee claimers', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@alice 30%) (@bob 20%)');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toHaveLength(2);
+      expect(result.command?.feeClaimers?.[0]).toEqual({ username: 'alice', provider: 'twitter', bps: 3000 });
+      expect(result.command?.feeClaimers?.[1]).toEqual({ username: 'bob', provider: 'twitter', bps: 2000 });
+    });
+
+    it('caps 100% to 95%', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@target 100%)');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toEqual([
+        { username: 'target', provider: 'twitter', bps: 9500 },
+      ]);
+    });
+
+    it('rejects total claimers exceeding 95%', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@alice 50%) (@bob 50%)');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('exceeds maximum 95%');
+    });
+
+    it('does not set feeClaimers when none present', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toBeUndefined();
+    });
+
+    it('removes fee claimer text from description', () => {
+      const result = parseLaunchCommand('@BagsLaunch "Token" $TKN (@alice 30%) cool token');
+      expect(result.success).toBe(true);
+      expect(result.command?.description).toBe('cool token');
+      expect(result.command?.feeClaimers).toHaveLength(1);
+    });
+
+    it('works with key/value syntax', () => {
+      const result = parseLaunchCommand('@BagsLaunch name:"Token" ticker:"TKN" (@alice 50%)');
+      expect(result.success).toBe(true);
+      expect(result.command?.feeClaimers).toEqual([
+        { username: 'alice', provider: 'twitter', bps: 5000 },
+      ]);
     });
   });
 });

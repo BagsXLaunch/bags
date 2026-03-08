@@ -224,30 +224,57 @@ export class BagsLaunchProvider implements LaunchProvider {
       const tokenMint = new PublicKey(tokenInfo.tokenMint);
       log.info({ tokenMint: tokenMint.toBase58() }, 'Token metadata created');
 
-      // ── Step 2: Get or create fee share config (95% author / 5% bot) ──
+      // ── Step 2: Get or create fee share config ──
       log.info('Step 2: Creating fee share config');
 
-      // Build fee claimers: try to give 95% to tweet author, 5% to bot
-      let feeClaimers: Array<{ user: PublicKey; userBps: number }>;
-      try {
-        const authorWallet = await sdk.state.getLaunchWalletV2(input.authorUsername, 'twitter');
-        const authorPubkey = new PublicKey(authorWallet);
-        log.info({ authorUsername: input.authorUsername, authorWallet }, 'Resolved author wallet');
+      const BOT_BPS = 500; // 5% for bot
+      let feeClaimers: Array<{ user: PublicKey; userBps: number }> = [];
 
-        if (authorPubkey.equals(keypair.publicKey)) {
-          // Author IS the bot wallet — give 100% to bot
-          feeClaimers = [{ user: keypair.publicKey, userBps: 10000 }];
-        } else {
-          feeClaimers = [
-            { user: authorPubkey, userBps: 9500 },
-            { user: keypair.publicKey, userBps: 500 },
-          ];
+      // Resolve explicit fee claimers from tweet syntax: (@username XX%)
+      if (input.feeClaimers && input.feeClaimers.length > 0) {
+        for (const fc of input.feeClaimers) {
+          try {
+            const result = await sdk.state.getLaunchWalletV2(fc.username, fc.provider);
+            feeClaimers.push({ user: result.wallet, userBps: fc.bps });
+            log.info({ username: fc.username, wallet: result.wallet.toBase58(), bps: fc.bps }, 'Resolved fee claimer wallet');
+          } catch (err) {
+            log.warn({ username: fc.username, error: String(err) }, 'Could not resolve fee claimer wallet — skipping');
+          }
         }
-      } catch (walletErr) {
-        log.warn({ authorUsername: input.authorUsername, error: String(walletErr) },
-          'Could not resolve author wallet — bot gets 100% fees');
+      }
+
+      // Calculate remaining BPS after explicit claimers + bot
+      const explicitClaimerBps = feeClaimers.reduce((sum, c) => sum + c.userBps, 0);
+      const authorBps = 10000 - BOT_BPS - explicitClaimerBps;
+
+      // Resolve author wallet for remaining share
+      if (authorBps > 0) {
+        try {
+          const authorResult = await sdk.state.getLaunchWalletV2(input.authorUsername, 'twitter');
+          if (authorResult.wallet.equals(keypair.publicKey)) {
+            // Author IS the bot — merge author share into bot
+            feeClaimers.push({ user: keypair.publicKey, userBps: authorBps + BOT_BPS });
+          } else {
+            feeClaimers.push({ user: authorResult.wallet, userBps: authorBps });
+            feeClaimers.push({ user: keypair.publicKey, userBps: BOT_BPS });
+            log.info({ authorUsername: input.authorUsername, wallet: authorResult.wallet.toBase58(), bps: authorBps }, 'Author gets remaining fees');
+          }
+        } catch (walletErr) {
+          log.warn({ authorUsername: input.authorUsername, error: String(walletErr) },
+            'Could not resolve author wallet — bot gets remaining fees');
+          feeClaimers.push({ user: keypair.publicKey, userBps: authorBps + BOT_BPS });
+        }
+      } else {
+        // All BPS allocated to explicit claimers — bot gets its 5%
+        feeClaimers.push({ user: keypair.publicKey, userBps: BOT_BPS });
+      }
+
+      // If no claimers were resolved (all lookups failed), bot gets 100%
+      if (feeClaimers.length === 0) {
         feeClaimers = [{ user: keypair.publicKey, userBps: 10000 }];
       }
+
+      log.info({ feeClaimers: feeClaimers.map(c => ({ wallet: c.user.toBase58(), bps: c.userBps })) }, 'Fee split configured');
 
       const configKey = await this.getOrCreateFeeShareConfig(sdk, keypair, connection, commitment, tokenMint, feeClaimers);
 

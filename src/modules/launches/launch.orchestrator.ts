@@ -132,7 +132,7 @@ export async function processTweet(tweet: TweetData): Promise<void> {
 export async function executeLaunch(
   launchRequestId: string,
   tweet: TweetData,
-  command: { name: string; ticker: string; description?: string; mediaUrls?: string[] },
+  command: { name: string; ticker: string; description?: string; mediaUrls?: string[]; feeClaimers?: Array<{ username: string; provider: 'twitter'; bps: number }> },
   parentLog?: Logger,
 ): Promise<void> {
   const plog = parentLog ?? log.child({ launchRequestId });
@@ -170,6 +170,7 @@ export async function executeLaunch(
       ticker: command.ticker,
       description: command.description,
       mediaUrls: command.mediaUrls,
+      feeClaimers: command.feeClaimers,
     });
 
     if (result.success) {

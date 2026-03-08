@@ -8,12 +8,18 @@ const TICKER_MIN = 2;
 const TICKER_MAX = 10;
 const TICKER_PATTERN = /^[A-Z0-9]+$/;
 
+const FEE_CLAIMER_PATTERN = /\(@(\w+)\s+(\d+)%?\)/g;
+const BOT_FEE_BPS = 500; // 5% reserved for bot
+const MAX_CLAIMER_BPS = 10000 - BOT_FEE_BPS; // 9500 = 95%
+
 /**
  * Parse a launch command from tweet text.
  *
  * Supported formats:
  *   @Bot "My Project" $TICKER
  *   @Bot "My Project" $TICKER description here
+ *   @Bot "My Project" $TICKER (@feeclaimer 50%)
+ *   @Bot "My Project" $TICKER (@alice 30%) (@bob 20%)
  *   @Bot name:"My Project" ticker:"TICKER"
  *   @Bot name:"My Project" ticker:"TICKER" desc:"some description"
  */
@@ -33,15 +39,27 @@ export function parseLaunchCommand(rawText: string): ParseResult {
     return { success: false, error: 'Empty command after mention' };
   }
 
+  // Extract fee claimers before parsing the rest
+  const { feeClaimers, cleanBody, error: feeError } = extractFeeClaimers(body);
+  if (feeError) {
+    return { success: false, error: feeError };
+  }
+
   // Try key/value syntax first: name:"Value" ticker:"VALUE"
-  const kvResult = parseKeyValueSyntax(body);
+  const kvResult = parseKeyValueSyntax(cleanBody);
   if (kvResult.success || kvResult.error !== 'Key/value syntax requires name:"..." and ticker:"..."') {
+    if (kvResult.success && kvResult.command && feeClaimers.length > 0) {
+      kvResult.command.feeClaimers = feeClaimers;
+    }
     return kvResult;
   }
 
   // Fall back to plain syntax: "Name" $TICKER [description...]
-  const plainResult = parsePlainSyntax(body);
+  const plainResult = parsePlainSyntax(cleanBody);
   if (plainResult.success || plainResult.error !== 'Plain syntax requires "Name" and $TICKER') {
+    if (plainResult.success && plainResult.command && feeClaimers.length > 0) {
+      plainResult.command.feeClaimers = feeClaimers;
+    }
     return plainResult;
   }
 
@@ -49,6 +67,43 @@ export function parseLaunchCommand(rawText: string): ParseResult {
     success: false,
     error: 'Could not parse launch command. Use: @Bot "Project Name" $TICKER',
   };
+}
+
+function extractFeeClaimers(body: string): {
+  feeClaimers: Array<{ username: string; provider: 'twitter'; bps: number }>;
+  cleanBody: string;
+  error?: string;
+} {
+  const feeClaimers: Array<{ username: string; provider: 'twitter'; bps: number }> = [];
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(FEE_CLAIMER_PATTERN.source, 'g');
+
+  while ((match = regex.exec(body)) !== null) {
+    const username = match[1]!;
+    let pct = parseInt(match[2]!, 10);
+
+    // Cap at 95% (bot always keeps 5%)
+    if (pct > 95) pct = 95;
+    if (pct <= 0) {
+      return { feeClaimers: [], cleanBody: body, error: `Fee percentage for @${username} must be greater than 0` };
+    }
+
+    feeClaimers.push({ username, provider: 'twitter', bps: pct * 100 });
+  }
+
+  const totalClaimerBps = feeClaimers.reduce((sum, c) => sum + c.bps, 0);
+  if (totalClaimerBps > MAX_CLAIMER_BPS) {
+    return {
+      feeClaimers: [],
+      cleanBody: body,
+      error: `Total fee claimer percentage (${totalClaimerBps / 100}%) exceeds maximum 95%`,
+    };
+  }
+
+  // Remove fee claimer entries from the body so they don't pollute description parsing
+  const cleanBody = body.replace(new RegExp(FEE_CLAIMER_PATTERN.source, 'g'), '').replace(/\s+/g, ' ').trim();
+
+  return { feeClaimers, cleanBody };
 }
 
 function parseKeyValueSyntax(body: string): ParseResult {

@@ -11,6 +11,7 @@ export interface LaunchProviderInput {
   ticker: string;
   description?: string;
   mediaUrls?: string[];
+  feeClaimers?: Array<{ username: string; provider: 'twitter'; bps: number }>;
 }
 
 export interface LaunchProviderResult {
