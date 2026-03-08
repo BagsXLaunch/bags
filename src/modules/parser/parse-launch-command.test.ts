@@ -10,14 +10,14 @@ import { parseLaunchCommand } from './parse-launch-command.js';
 describe('parseLaunchCommand', () => {
   describe('plain syntax', () => {
     it('parses @Bot "Name" $TICKER', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "My Project" $MYPROJ');
+      const result = parseLaunchCommand('@BagsLaunch "My Project" $MYPROJ');
       expect(result.success).toBe(true);
       expect(result.command?.name).toBe('My Project');
       expect(result.command?.ticker).toBe('MYPROJ');
     });
 
     it('parses with description after ticker', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "Cool Token" $COOL a great token');
+      const result = parseLaunchCommand('@BagsLaunch "Cool Token" $COOL a great token');
       expect(result.success).toBe(true);
       expect(result.command?.name).toBe('Cool Token');
       expect(result.command?.ticker).toBe('COOL');
@@ -25,7 +25,7 @@ describe('parseLaunchCommand', () => {
     });
 
     it('normalizes ticker to uppercase', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "Test" $mytoken');
+      const result = parseLaunchCommand('@BagsLaunch "Test" $mytoken');
       expect(result.success).toBe(true);
       expect(result.command?.ticker).toBe('MYTOKEN');
     });
@@ -33,7 +33,7 @@ describe('parseLaunchCommand', () => {
 
   describe('key/value syntax', () => {
     it('parses name:"..." ticker:"..."', () => {
-      const result = parseLaunchCommand('@LaunchOnBags name:"My Project" ticker:"PROJ"');
+      const result = parseLaunchCommand('@BagsLaunch name:"My Project" ticker:"PROJ"');
       expect(result.success).toBe(true);
       expect(result.command?.name).toBe('My Project');
       expect(result.command?.ticker).toBe('PROJ');
@@ -41,7 +41,7 @@ describe('parseLaunchCommand', () => {
 
     it('parses with description', () => {
       const result = parseLaunchCommand(
-        '@LaunchOnBags name:"My Project" ticker:"PROJ" desc:"short description"',
+        '@BagsLaunch name:"My Project" ticker:"PROJ" desc:"short description"',
       );
       expect(result.success).toBe(true);
       expect(result.command?.description).toBe('short description');
@@ -62,38 +62,38 @@ describe('parseLaunchCommand', () => {
     });
 
     it('rejects name too short', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "AB" $TK');
+      const result = parseLaunchCommand('@BagsLaunch "AB" $TK');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Name must be');
     });
 
     it('rejects ticker too short', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "Valid Name" $X');
+      const result = parseLaunchCommand('@BagsLaunch "Valid Name" $X');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Ticker must be');
     });
 
     it('rejects ticker too long', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "Valid Name" $ABCDEFGHIJK');
+      const result = parseLaunchCommand('@BagsLaunch "Valid Name" $ABCDEFGHIJK');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Ticker must be');
     });
 
     it('rejects missing ticker', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "Valid Name"');
+      const result = parseLaunchCommand('@BagsLaunch "Valid Name"');
       expect(result.success).toBe(false);
     });
   });
 
   describe('sanitization', () => {
     it('handles zero-width characters', () => {
-      const result = parseLaunchCommand('@LaunchOnBags "My\u200B Project" $PROJ');
+      const result = parseLaunchCommand('@BagsLaunch "My\u200B Project" $PROJ');
       expect(result.success).toBe(true);
       expect(result.command?.name).toBe('My Project');
     });
 
     it('handles extra whitespace', () => {
-      const result = parseLaunchCommand('@LaunchOnBags   "My  Project"   $PROJ');
+      const result = parseLaunchCommand('@BagsLaunch   "My  Project"   $PROJ');
       expect(result.success).toBe(true);
     });
   });

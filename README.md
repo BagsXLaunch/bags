@@ -45,13 +45,13 @@ src/
 **Plain syntax:**
 
 ```
-@LaunchOnBags "My Project" $PROJ
+@BagsLaunch "My Project" $PROJ
 ```
 
 **Key/value syntax:**
 
 ```
-@LaunchOnBags name:"My Project" ticker:"PROJ" desc:"A cool token"
+@BagsLaunch name:"My Project" ticker:"PROJ" desc:"A cool token"
 ```
 
 ## API Endpoints
@@ -71,7 +71,7 @@ With `LAUNCH_PROVIDER=mock` and `ENABLE_REPLY_POSTING=false`, the bot uses a moc
 ```bash
 curl -X POST http://localhost:3000/admin/process-tweet \
   -H "Content-Type: application/json" \
-  -d '{"tweetId":"demo_1","authorId":"user_1","authorUsername":"testuser","text":"@LaunchOnBags \"My Token\" $MTK"}'
+  -d '{"tweetId":"demo_1","authorId":"user_1","authorUsername":"testuser","text":"@BagsLaunch \"My Token\" $MTK"}'
 ```
 
 ## Environment Variables
